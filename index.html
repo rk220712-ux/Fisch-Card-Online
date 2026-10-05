@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Fisch Card Game - Online Multiplayer</title>
+<script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:Arial,sans-serif;background:#0d1724;color:#fff;min-height:100vh;overflow-x:hidden}
+button{font:inherit;border:0;cursor:pointer}
+.screen{display:none;min-height:100vh;padding:22px 16px;flex-direction:column}
+.screen.active{display:flex}
+.menu{justify-content:center;align-items:center;text-align:center;background:radial-gradient(circle at 50% 20%,#244768 0,#0d1724 52%)}
+.logo{font-size:38px;font-weight:900;letter-spacing:2px;margin-bottom:8px}
+.sub{opacity:.75;margin-bottom:25px}
+.menu-btn{width:min(360px,90vw);padding:15px;margin:7px;border-radius:14px;background:#2086d9;color:#fff;font-weight:800;font-size:18px;box-shadow:0 5px 0 #12598f}
+.menu-btn:active{transform:translateY(3px);box-shadow:0 2px 0 #12598f}
+.menu-btn.secondary{background:#306b9e}
+.menu-btn.accent{background:#27a463;box-shadow:0 5px 0 #186b41}
+.small{font-size:12px;opacity:.55;margin-top:20px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.turn{font-weight:900;font-size:15px}
+.info{font-size:11px;opacity:.65}
+.status-badge{background:#d88722;color:#fff;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:800;box-shadow:0 3px 6px #0004}
+.table{width:min(700px,100%);margin:auto;display:flex;flex-direction:column;gap:10px}
+.opponents{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.opp{background:#172a3d;border:1px solid #2a4258;border-radius:10px;padding:6px 10px;font-size:11px}
+.center{display:flex;justify-content:center;align-items:center;gap:15px;min-height:130px}
+.pile{width:75px;height:102px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 5px 10px #0006}
+.deck{background:repeating-linear-gradient(45deg,#1d3144,#1d3144 7px,#27465f 7px,#27465f 14px);border:3px solid #5b7287;color:#fff;cursor:pointer}
+.discard{border:3px solid #fff8}
+.hand-title{text-align:center;font-size:13px;opacity:.7}
+.hand{display:flex;justify-content:center;gap:7px;flex-wrap:wrap;min-height:95px}
+.card{width:56px;height:80px;border-radius:9px;border:2px solid #ffffffaa;color:#10151a;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;box-shadow:0 4px 7px #0005;user-select:none;position:relative}
+.card .name{font-size:8px;text-align:center;padding:0 3px}
+.card .num{font-size:24px}
+.card.disabled{opacity:.42;filter:grayscale(.7)}
+.card.playable{outline:3px solid #fff;transform:translateY(-4px)}
+.yellow{background:#f4c72d}.pink{background:#ef668f}.blue{background:#48a9ed}.green{background:#8bdc91}
+.special-label{font-size:7px;background:#0008;color:#fff;padding:2px 4px;border-radius:4px;margin-bottom:2px}
+.actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.action-btn{padding:10px 16px;border-radius:11px;background:#2b536f;color:#fff;font-weight:800;font-size:13px}
+.action-btn.primary{background:#27a463}
+.action-btn:disabled{opacity:.35}
+
+/* Lobby Player List */
+.lobby-list{background:#0b131d;border:1px solid #36516a;border-radius:12px;padding:12px;margin:12px 0;max-height:160px;overflow-y:auto;text-align:left}
+.lobby-item{padding:8px 12px;background:#17283a;margin-bottom:6px;border-radius:8px;font-weight:bold;font-size:14px;display:flex;justify-content:space-between}
+
+/* Chat Styles */
+.chat-box{background:#111d2a;border:1px solid #2b4258;border-radius:12px;padding:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:130px}
+.chat-messages{flex:1;overflow-y:auto;font-size:12px;max-height:75px;display:flex;flex-direction:column;gap:4px;text-align:left;padding-right:4px}
+.chat-msg{background:#1a2c3f;padding:4px 8px;border-radius:6px;word-break:break-word}
+.chat-input-row{display:flex;gap:6px}
+.chat-input{flex:1;padding:8px;border-radius:8px;border:1px solid #36516a;background:#0b131d;color:#fff;font-size:12px}
+
+/* Overlay & Roll Animation Box */
+.overlay{position:fixed;inset:0;background:#08111bd9;display:flex;align-items:center;justify-content:center;padding:20px;z-index:10}
+.overlay.hidden{display:none}
+.modal{width:min(420px,100%);background:#17283a;border:1px solid #36516a;border-radius:20px;padding:22px;text-align:center;box-shadow:0 15px 50px #0009}
+.modal h2{margin-top:0}
+.notice{font-size:13px;line-height:1.5;opacity:.75}
+.input-text{width:100%;padding:12px;border-radius:10px;border:1px solid #36516a;background:#0b131d;color:#fff;font-size:16px;text-align:center;margin:10px 0}
+.msg{min-height:20px;text-align:center;font-size:12px;color:#ffdd75}
+
+.roll-box{width:110px;height:110px;background:#fff;color:#0d1724;border-radius:16px;margin:15px auto;display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:900;box-shadow:0 0 25px rgba(255,255,255,0.6);animation:pulseRoll .4s infinite alternate}
+@keyframes pulseRoll{from{transform:scale(1)} to{transform:scale(1.06)}}
+
+@media(max-width:390px){.card{width:50px;height:72px}.card .num{font-size:20px}.logo{font-size:32px}}
+</style>
+</head>
+<body>
+
+<section id="menu" class="screen active menu">
+  <div class="logo">FISCH CARD</div>
+  <div class="sub">Online Multiplayer v2.6 (STUN Fix)</div>
+  <div style="width:min(340px,90vw);margin-bottom:15px">
+    <div style="font-size:12px;opacity:0.7;margin-bottom:5px;text-align:left">Username Anda:</div>
+    <input type="text" id="usernameInput" class="input-text" placeholder="Masukkan nama..." value="Player1" style="margin:0">
+  </div>
+  <button class="menu-btn" onclick="goToOnlineMenu()">ONLINE</button>
+  <button class="menu-btn secondary" onclick="showGuide()">CARA MAIN</button>
+  <div class="small">Fisch Card • STUN Server Connected</div>
+</section>
+
+<section id="onlineMenu" class="screen menu">
+  <div class="logo" style="font-size:28px">MULTIPLAYER</div>
+  <div class="sub" id="welcomeUserSub">Pilih mode koneksi online</div>
+  <button class="menu-btn" onclick="hostGameSetup()">HOST (Buat Room)</button>
+  <button class="menu-btn secondary" onclick="joinGameSetup()">JOIN (Masuk Room)</button>
+  <button class="menu-btn" style="background:#394653;margin-top:15px" onclick="show('menu')">Kembali</button>
+</section>
+
+<section id="lobbyScreen" class="screen menu">
+  <div class="logo" style="font-size:26px">ROOM LOBBY</div>
+  <div class="sub" id="roomCodeDisplay">Kode Room: -</div>
+  <div style="width:min(400px,90vw);text-align:left">
+    <div style="font-size:13px;font-weight:bold;margin-bottom:5px">Daftar Pemain di Room:</div>
+    <div class="lobby-list" id="lobbyPlayerList">
+      <div class="lobby-item">Menunggu pemain...</div>
+    </div>
+  </div>
+  <div style="width:min(400px,90vw);margin-top:10px">
+    <button id="startRoomBtn" class="menu-btn accent" style="width:100%;display:none" onclick="hostStartGame()">Mulai Permainan</button>
+    <button class="menu-btn secondary" style="width:100%;margin-top:6px" onclick="goMenu()">Keluar / Batal</button>
+  </div>
+</section>
+
+<section id="game" class="screen">
+  <div class="topbar">
+    <div><div class="turn" id="turnText">Menunggu...</div><div class="info" id="countText">Room Aktif</div></div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div id="activeEffectBadge" class="status-badge" style="display:none;"></div>
+      <button class="action-btn" onclick="confirmQuit()" style="background:#a93232">Keluar</button>
+    </div>
+  </div>
+  <div class="table">
+    <div class="opponents" id="opponents"></div>
+    <div class="center">
+      <div class="pile deck" id="deckPile" onclick="drawCard()">DECK<br><span style="font-size:9px">ambil</span></div>
+      <div id="discard" class="pile discard"></div>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div class="hand-title">Kartu Milik Anda</div>
+    <div id="hand" class="hand"></div>
+    <div class="actions">
+      <button id="endBtn" class="action-btn primary" onclick="finishTurn()" disabled>Selesai Giliran</button>
+    </div>
+    
+    <div class="chat-box">
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg" style="opacity:0.6">Sistem: Selamat datang di ruang obrolan Fisch Card!</div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" class="chat-input" placeholder="Ketik pesan..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="action-btn" onclick="sendChat()">Kirim</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="overlay" class="overlay hidden">
+  <div class="modal">
+    <h2 id="modalTitle">Informasi</h2>
+    <div id="modalBody"></div>
+    <button id="modalBtn" class="menu-btn" style="width:100%;margin:10px 0 0;display:none">Tutup</button>
+  </div>
+</div>
+
+<script>
+const COLORS=[
+  {key:'yellow',name:'Legendary'},
+  {key:'pink',name:'Mythical'},
+  {key:'blue',name:'Limited'},
+  {key:'green',name:'Relic'}
+];
+
+const iceConfig = {
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  }
+};
+
+let myName = 'Player1';
+let peer=null, connections=[], isHost=false, roomCode='';
+let playersInfo = [];
+let myPlayerIndex = 0;
+
+let players=0, current=0, hands=[], deck=[], discard=null, hasPlayed=false, plusPending=0, direction=1;
+let krakenActive=null, devilActive=false, gameOver=false, startedGameFlag=false;
+
+function $(id){return document.getElementById(id)}
+function show(id){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));$(id).classList.add('active')}
+
+function goToOnlineMenu(){
+  let val = $('usernameInput').value.trim();
+  if(val) myName = val;
+  $('welcomeUserSub').textContent = `Login sebagai: ${myName}`;
+  show('onlineMenu');
+}
+
+function goMenu(){
+  gameOver=false;
+  startedGameFlag=false;
+  if(peer) peer.destroy();
+  connections = [];
+  $('overlay').classList.add('hidden');
+  show('menu');
+}
+
+function showGuide(){
+  $('modalTitle').textContent='Panduan Online Fisch Card';$('modalBody').innerHTML=`
+    <div class="notice" style="text-align:left;max-height:50vh;overflow-y:auto">
+      <b>1. Host Room:</b> Masukkan username, klik Host, lalu bagikan kode room ke teman.<br>
+      <b>2. Join Room:</b> Masukkan username, klik Join, masukkan kode dari host.<br>
+      <b>3. Mulai Game:</b> Host dapat melihat daftar pemain di lobby dan menekan tombol "Mulai Permainan".<br>
+      <b>4. Penentuan Giliran:</b> Di awal game ada animasi kotak putih acak untuk menentukan siapa yang main duluan.
+    </div>
+  `;
+  $('modalBtn').style.display='block';
+  $('modalBtn').textContent='Mengerti';$('modalBtn').onclick=()=>{$('overlay').classList.add('hidden');};$('overlay').classList.remove('hidden');
+}
+
+function hostGameSetup(){
+  isHost=true;
+  let randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+  roomCode = 'fisch-' + randomCode;
+  
+  playersInfo = [{id: 'HOST', name: myName, index: 0}];
+  myPlayerIndex = 0;
+
+  $('roomCodeDisplay').textContent = `Kode Room Anda: ${randomCode}`;
+  updateLobbyUI();
+  $('startRoomBtn').style.display = 'block';
+  show('lobbyScreen');
+
+  peer = new Peer(roomCode, iceConfig);
+  peer.on('connection', (conn)=>{
+    connections.push(conn);
+    setupPeerConnection(conn);
+  });
+  peer.on('error', (err)=>{
+    alert('Gagal membuat room: '+err.type);
+    goMenu();
+  });
+}
+
+function updateLobbyUI(){
+  let listEl = $('lobbyPlayerList');
+  listEl.innerHTML = playersInfo.map(p=>`<div class="lobby-item"><span> ${p.name}</span> <span style="font-size:11px;opacity:0.6">${p.id==='HOST'?'(Host)':'(Member)'}</span></div>`).join('');
+}
+
+function joinGameSetup(){
+  isHost=false;
+  $('modalTitle').textContent='Gabung Room';$('modalBody').innerHTML=`
+    <div class="notice">Masukkan 4 digit kode room dari Host:</div>
+    <input type="number" id="joinCodeInput" class="input-text" placeholder="Contoh: 1234">
+    <button class="action-btn primary" style="width:100%" onclick="connectToHost()">Hubungkan</button>
+  `;
+  $('modalBtn').style.display='block';
+  $('modalBtn').textContent='Batal';$('modalBtn').onclick=goMenu;
+  $('overlay').classList.remove('hidden');
+}
+
+function connectToHost(){
+  let code = $('joinCodeInput').value.trim();
+  if(!code){alert('Masukkan kode!');return;}
+  
+  roomCode = 'fisch-' + code;
+  $('modalTitle').textContent='Menghubungkan...';$('modalBody').innerHTML=`<div class="notice">Mencari room ${code}...</div>`;
+  $('modalBtn').style.display='none';
+
+  peer = new Peer(undefined, iceConfig);
+  peer.on('open', (id)=>{
+    let conn = peer.connect(roomCode);
+    connections = [conn];
+    setupPeerConnection(conn);
+
+    conn.on('open', ()=>{
+      conn.send({type: 'JOIN_REQUEST', name: myName});
+    });
+  });
+
+  peer.on('error', (err)=>{
+    alert('Room tidak ditemukan atau gagal terhubung.');
+    joinGameSetup();
+  });
+}
+
+function setupPeerConnection(conn){
+  conn.on('data', (data)=>{
+    handleIncomingData(data, conn);
+  });
+  conn.on('close', ()=>{
+    alert('Koneksi terputus dari pemain lain.');
+    goMenu();
+  });
+}
+
+function broadcast(data){
+  connections.forEach(c=>{
+    if(c && c.open) c.send(data);
+  });
+}
+
+function handleIncomingData(data, conn){
+  if(data.type === 'JOIN_REQUEST' && isHost){
+    let newIndex = playersInfo.length;
+    playersInfo.push({id: conn.peer, name: data.name, index: newIndex});
+    updateLobbyUI();
+    broadcast({type: 'LOBBY_UPDATE', playersInfo: playersInfo});
+  } else if(data.type === 'LOBBY_UPDATE'){
+    playersInfo = data.playersInfo;
+    let me = playersInfo.find(p => p.name === myName && p.id !== 'HOST');
+    if(me) myPlayerIndex = me.index;
+    
+    $('roomCodeDisplay').textContent = `Terhubung ke Room Host`;
+    $('lobbyPlayerList').innerHTML = playersInfo.map(p=>`<div class="lobby-item"><span> ${p.name}</span></div>`).join('');
+    $('startRoomBtn').style.display = 'none';
+    show('lobbyScreen');
+  } else if(data.type === 'START_GAME_ANIMATION'){
+    playTurnRollAnimation(data.firstPlayerIndex, data.state);
+  } else if(data.type === 'STATE_UPDATE'){
+    players = data.players;
+    current = data.current;
+    hands = data.hands;
+    deck = data.deck;
+    discard = data.discard;
+    plusPending = data.plusPending;
+    direction = data.direction;
+    krakenActive = data.krakenActive;
+    devilActive = data.devilActive;
+    gameOver = data.gameOver;
+    
+    if(!startedGameFlag){
+      startedGameFlag = true;
+      show('game');
+    }
+    renderOnlineBoard();
+  } else if(data.type === 'CHAT'){
+    appendChatMessage(data.sender, data.text);
+  } else if(data.type === 'ACTION_PLAY'){
+    processClientAction(data.cardIndex, data.playerIdx);
+  } else if(data.type === 'ACTION_DRAW'){
+    processClientDraw(data.playerIdx);
+  } else if(data.type === 'ACTION_FINISH'){
+    processClientFinish();
+  }
+}
+
+function hostStartGame(){
+  if(playersInfo.length < 2){
+    alert('Minimal harus ada 2 pemain di room untuk mulai!');
+    return;
+  }
+
+  players = playersInfo.length;
+  current = Math.floor(Math.random() * players);
+
+  hands = Array.from({length:players},()=>[]);
+  deck = buildDeck();
+  plusPending = 0; direction = 1; krakenActive = null; devilActive = false; gameOver = false;
+  
+  for(let i=0;i<7;i++) for(let p=0;p<players;p++) hands[p].push(deck.pop());
+  let idx = deck.findIndex(c=>c.type==='number');
+  discard = deck.splice(idx,1)[0];
+
+  let state = {
+    players: players, current: current, hands: hands, deck: deck, discard: discard,
+    plusPending: plusPending, direction: direction, krakenActive: krakenActive, devilActive: devilActive, gameOver: gameOver
+  };
+
+  broadcast({type: 'START_GAME_ANIMATION', firstPlayerIndex: current, state: state});
+  playTurnRollAnimation(current, state);
+}
+
+function playTurnRollAnimation(targetPlayerIdx, gameData){
+  $('overlay').classList.remove('hidden');
+  let modalTitle = $('modalTitle');
+  let modalBody = $('modalBody');
+  let modalBtn = $('modalBtn');
+  
+  modalBtn.style.display = 'none';
+  modalTitle.textContent = 'Menentukan Giliran Pertama...';
+  
+  let counter = 0;
+  let maxCount = 20;
+  let totalP = playersInfo.length > 0 ? playersInfo.length : 2;
+
+  let rollInterval = setInterval(()=>{
+    let randomNum = Math.floor(Math.random() * totalP) + 1;
+    modalBody.innerHTML = `
+      <div class="notice">Mengacak pemain yang jalan pertama:</div>
+      <div class="roll-box">${randomNum}</div>
+    `;
+    counter++;
+    if(counter >= maxCount){
+      clearInterval(rollInterval);
+      let winnerName = playersInfo[targetPlayerIdx] ? playersInfo[targetPlayerIdx].name : `Player ${targetPlayerIdx+1}`;
+      modalBody.innerHTML = `
+        <div class="notice">Giliran Pertama Jatuh Kepada:</div>
+        <div class="roll-box" style="font-size:30px;background:#27a463;color:#fff">${winnerName}</div>
+      `;
+      setTimeout(()=>{
+        $('overlay').classList.add('hidden');
+        players = gameData.players;
+        current = gameData.current;
+        hands = gameData.hands;
+        deck = gameData.deck;
+        discard = gameData.discard;
+        plusPending = gameData.plusPending;
+        direction = gameData.direction;
+        krakenActive = gameData.krakenActive;
+        devilActive = gameData.devilActive;
+        gameOver = gameData.gameOver;
+
+        startedGameFlag = true;
+        show('game');
+        renderOnlineBoard();
+      }, 1500);
+    }
+  }, 90);
+}
+
+function buildDeck(){
+  let d=[],id=0;
+  for(const c of COLORS){
+    for(let n=1;n<=9;n++) d.push({id:id++,type:'number',color:c.key,colorName:c.name,value:n,label:String(n)});
+    d.push({id:id++,type:'reverse',color:c.key,colorName:c.name,label:revName(c.key),actionLabel:'REVERSE'});
+    d.push({id:id++,type:'skip',color:c.key,colorName:c.name,label:skipName(c.key),actionLabel:'SKIP'});
+    d.push({id:id++,type:'plus2',color:c.key,colorName:c.name,label:plusName(c.key),actionLabel:'+2 PENALTY'});
+  }
+  return shuffle(d);
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function revName(k){return {yellow:'Fin Whale',pink:'Blue Whale',blue:'Sei Whale',green:'Humpback Whale'}[k]}
+function skipName(k){return {yellow:'Umbraleaf Sturgeon',pink:'Solarseer Sturgeon',blue:'Glacierseer Sturgeon',green:'Floraseer Sturgeon'}[k]}
+function plusName(k){return {yellow:'Crowned Anglerfish',pink:'Magma Leviathan',blue:'Frozen Leviathan',green:'Crystalized Seadragon'}[k]}
+
+function renderOnlineBoard(){
+  let myIdx = myPlayerIndex;
+  let countTextStr = playersInfo.map((p, idx)=>`${p.name}: ${hands[idx]?hands[idx].length:0}`).join('  •  ');
+  $('countText').textContent = countTextStr;
+
+  let oppHtml = '';
+  playersInfo.forEach((p, idx)=>{
+    if(idx !== myIdx){
+      oppHtml += `<div class="opp">${p.name}: ${hands[idx]?hands[idx].length:0} Kartu </div>`;
+    }
+  });
+  $('opponents').innerHTML = oppHtml;
+  
+  renderDiscard();
+
+  const hand = $('hand');
+  hand.innerHTML = '';
+  
+  let isMyTurn = (current === myIdx);
+  let activePlayerName = playersInfo[current] ? playersInfo[current].name : `Player ${current+1}`;
+  $('turnText').textContent = isMyTurn ? ' Giliran Anda!' : ` Menunggu ${activePlayerName}...`;
+  
+  if(plusPending > 0){
+    $('msg').textContent = isMyTurn ? ` Terkena Penalti ${plusPending} Kartu!` : `${activePlayerName} sedang terkena penalti.`;
+  } else {
+    $('msg').textContent = isMyTurn ? 'Silakan mainkan kartu atau ambil dari deck.' : `Giliran ${activePlayerName}. Silakan tunggu atau gunakan chat.`;
+  }
+
+  if(hands[myIdx]){
+    hands[myIdx].forEach((c,i)=>{
+      const el=document.createElement('button');
+      let isPlayable = isMyTurn && canPlay(c);
+      el.className='card '+cardClass(c)+(isPlayable?' playable':' disabled');
+      el.innerHTML=cardHTML(c);
+      if(isMyTurn){
+        el.onclick=()=>onCardClicked(i);
+      }
+      hand.appendChild(el);
+    });
+  }
+
+  if($('deckPile')){$('deckPile').style.pointerEvents = isMyTurn ? 'auto' : 'none';
+  }
+  $('endBtn').disabled = !isMyTurn || !hasPlayed;
+
+  if(gameOver){
+    let winner = playersInfo[current] ? playersInfo[current].name : `Player ${current+1}`;
+    triggerGameOver(winner);
+  }
+}
+
+function cardClass(c){return c.color ? ' '+c.color : ' yellow'}
+function cardHTML(c){
+  let badgeText = c.actionLabel || (c.type==='number' ? '' : 'SPECIAL');
+  let topLabel = badgeText ? `<div class="special-label">${badgeText}</div>` : '';
+  if(c.type==='number')return `<div class="num">${c.value}</div><div class="name">${c.colorName}</div>`;
+  return `${topLabel}<div class="name">${c.label.replace('\\n','<br>')}</div>`;
+}
+function renderDiscard(){
+  const d=$('discard');
+  if(!discard)return;
+  d.className='pile discard '+discard.color;
+  d.innerHTML=discard.type==='number'?`<div style="font-size:28px">${discard.value}</div>`:`<div class="name" style="font-size:9px">${(discard.label||'').replace('\\n','<br>')}</div>`;
+}
+
+function canPlay(c){
+  if(!discard)return true;
+  if(hasPlayed)return false;
+  if(plusPending>0) return c.type==='plus2';
+  return c.color===discard.color || (c.type==='number' && discard.type==='number' && c.value===discard.value) || c.type===discard.type;
+}
+
+function onCardClicked(i){
+  if(isHost){
+    processClientAction(i, myPlayerIndex);
+  } else {
+    connections[0].send({type: 'ACTION_PLAY', cardIndex: i, playerIdx: myPlayerIndex});
+  }
+}
+
+function drawCard(){
+  if(isHost){
+    processClientDraw(myPlayerIndex);
+  } else {
+    connections[0].send({type: 'ACTION_DRAW', playerIdx: myPlayerIndex});
+  }
+}
+
+function finishTurn(){
+  if(isHost){
+    processClientFinish();
+  } else {
+    connections[0].send({type: 'ACTION_FINISH'});
+  }
+}
+
+function processClientAction(i, pIdx){
+  if(current !== pIdx) return;
+  const c = hands[pIdx][i];
+  if(!canPlay(c)) return;
+
+  if(discard && deck) deck.push(discard);
+  discard = c;
+  hands[pIdx].splice(i,1);
+  hasPlayed = true;
+
+  if(c.type==='plus2'){ plusPending += 2; }
+  else if(plusPending > 0){ plusPending = 0; }
+
+  if(c.type==='skip' || c.type==='reverse'){
+    hasPlayed = false;
+    drawn = false;
+  }
+
+  if(hands[pIdx].length===0){
+    gameOver = true;
+  }
+
+  if(isHost){
+    syncGameState();
+    renderOnlineBoard();
+  }
+}
+
+function processClientDraw(pIdx){
+  if(current !== pIdx) return;
+  let count = plusPending > 0 ? plusPending : 1;
+  for(let d=0; d<count; d++){
+    if(deck.length===0) deck = buildDeck();
+    hands[pIdx].push(deck.pop());
+  }
+  plusPending = 0;
+  hasPlayed = true;
+
+  if(isHost){
+    syncGameState();
+    renderOnlineBoard();
+  }
+}
+
+function processClientFinish(){
+  hasPlayed = false;
+  drawn = false;
+  current = (current + direction + players) % players;
+
+  if(isHost){
+    syncGameState();
+    renderOnlineBoard();
+  }
+}
+
+function syncGameState(){
+  let state = {
+    type: 'STATE_UPDATE', players: players, current: current, hands: hands,
+    deck: deck, discard: discard, plusPending: plusPending, direction: direction,
+    krakenActive: krakenActive, devilActive: devilActive, gameOver: gameOver
+  };
+  broadcast(state);
+}
+
+function sendChat(){
+  let input = $('chatInput');
+  let text = input.value.trim();
+  if(!text) return;
+  
+  appendChatMessage(myName, text);
+  broadcast({type: 'CHAT', sender: myName, text: text});
+  input.value = '';
+}
+
+function appendChatMessage(sender, text){
+  let box = $('chatMessages');
+  let div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = `<b>${sender}:</b> ${text}`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function triggerGameOver(winnerName){
+  $('modalTitle').textContent=` Permainan Selesai!`;
+  $('modalBody').innerHTML=`<div class="notice" style="font-size:16px;font-weight:bold;margin:15px 0">${winnerName} memenangkan pertandingan!</div>`;
+  $('modalBtn').style.display='block';
+  $('modalBtn').textContent='Kembali ke Menu';$('modalBtn').onclick=goMenu;
+  $('overlay').classList.remove('hidden');
+}
+
+function confirmQuit(){
+  if(confirm('Keluar dari sesi online?')){
+    goMenu();
+  }
+}
+</script>
+</body>
+</html>

@@ -36,7 +36,7 @@ button{font:inherit;border:0;cursor:pointer}
 .card .num{font-size:24px}
 .card.disabled{opacity:.42;filter:grayscale(.7)}
 .card.playable{outline:3px solid #fff;transform:translateY(-4px)}
-.yellow{background:#f4c72d}.pink{background:#ef668f}.blue{background:#48a9ed}.green{background:#8bdc91}
+.yellow{background:#f4c72d}.pink{background:#ef668f}.blue{background:#48a9ed}.green{background:#8bdc91}.wild{background:#9b59b6}.special{background:#e67e22}
 .special-label{font-size:7px;background:#0008;color:#fff;padding:2px 4px;border-radius:4px;margin-bottom:2px}
 .actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
 .action-btn{padding:10px 16px;border-radius:11px;background:#2b536f;color:#fff;font-weight:800;font-size:13px}
@@ -62,15 +62,13 @@ button{font:inherit;border:0;cursor:pointer}
 
 .roll-box{width:110px;height:110px;background:#fff;color:#0d1724;border-radius:16px;margin:15px auto;display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:900;box-shadow:0 0 25px rgba(255,255,255,0.6);animation:pulseRoll .4s infinite alternate}
 @keyframes pulseRoll{from{transform:scale(1)} to{transform:scale(1.06)}}
-
-@media(max-width:390px){.card{width:50px;height:72px}.card .num{font-size:20px}.logo{font-size:32px}}
 </style>
 </head>
 <body>
 
 <section id="menu" class="screen active menu">
   <div class="logo">FISCH CARD</div>
-  <div class="sub">Online Multiplayer v3.1</div>
+  <div class="sub">Online Multiplayer v3.2</div>
   <div style="width:min(340px,90vw);margin-bottom:15px">
     <div style="font-size:12px;opacity:0.7;margin-bottom:5px;text-align:left">Username Anda:</div>
     <input type="text" id="usernameInput" class="input-text" placeholder="Masukkan nama..." value="Player1" style="margin:0">
@@ -211,35 +209,23 @@ function showGuide(){
       • Limited = Biru<br>
       • Relic = Hijau muda<br>
       • Setiap warna kartu punya nomor 1-9.<br>
-      • Cara untuk menang di sini cuma siapa yang kartu nya habis duluan.<br><br>
+      • Siapa yang kartu nya habis duluan adalah pemenangnya!<br><br>
 
       <b>2. Action Card:</b><br>
-      <b>Reverse:</b><br>
-      • Blue Whale (Reverse Mythical)<br>
-      • Sei Whale (Reverse Limited)<br>
-      • Humpback Whale (Reverse Relic)<br>
-      • Fin Whale (Reverse Legendary)<br>
-      <b>Skip:</b><br>
-      • Solarseer Sturgeon (Skip Mythical)<br>
-      • Glacierseer Sturgeon (Skip Limited)<br>
-      • Floraseer Sturgeon (Skip Relic)<br>
-      • Umbraleaf Sturgeon (Skip Legendary)<br>
-      <b>Plus (+2):</b><br>
-      • Magma Leviathan (Plus Mythical)<br>
-      • Frozen Leviathan (Plus Limited)<br>
-      • Crowned Anglerfish (Plus Legendary)<br>
-      • Crystalized Seadragon (Plus Relic)<br><br>
+      <b>Reverse:</b> Blue Whale, Sei Whale, Humpback Whale, Fin Whale.<br>
+      <b>Skip:</b> Solarseer, Glacierseer, Floraseer, Umbraleaf Sturgeon.<br>
+      <b>Plus (+2):</b> Magma Leviathan, Frozen Leviathan, Crowned Anglerfish, Crystalized Seadragon.<br><br>
 
-      <b>3. Exotic Card (Wild Card - 4 Kartu Total):</b><br>
-      • <b>Megalodon:</b> Berfungsi merubah warna.<br>
-      • <b>Ancient Megalodon:</b> Berfungsi merubah warna + membuat player berikutnya mengambil 1 kartu.<br>
-      • <b>Kraken:</b> Player berikutnya harus mengambil kartu sesuai warna yang ditentukan pemilik.<br>
-      • <b>Flower Guardian:</b> Membatalkan efek plus dan mengakhiri efek plus nya.<br><br>
+      <b>3. Exotic Card (Wild Card):</b><br>
+      • <b>Megalodon:</b> Merubah warna.<br>
+      • <b>Ancient Megalodon:</b> Merubah warna + player berikutnya ambil 1 kartu.<br>
+      • <b>Kraken:</b> Pemain berikutnya ambil kartu sesuai warna pilihan pemilik.<br>
+      • <b>Flower Guardian:</b> Membatalkan dan mengakhiri efek plus.<br><br>
 
-      <b>4. Secret Card (Special Card - 3 Kartu Total):</b><br>
-      • <b>Scylla:</b> Membuat pemain yang dipilih harus mengambil 5 kartu dan gilirannya di-skip.<br>
-      • <b>Witherbloom:</b> Memunculkan efek Withered ke semua pemain (memilih 1 warna acak; jika tidak punya, ambil 5 kartu).<br>
-      • <b>Olympian Devil:</b> Membuat pemain yang tidak bisa memasang kartu harus mengambil 6 kartu terus menerus sampai ada yang mengambil kartu.
+      <b>4. Secret Card (Special Card):</b><br>
+      • <b>Scylla:</b> Pemain pilihan ambil 5 kartu & diskip (tidak berlaku 2 player).<br>
+      • <b>Witherbloom:</b> Efek Withered ke semua pemain (1 warna acak; jika tidak punya, ambil 5 kartu).<br>
+      • <b>Olympian Devil:</b> Pemain yang tidak bisa pasang kartu harus ambil 6 kartu terus menerus sampai ada yang mengambil kartu.
     </div>
   `;
   getElem('modalBtn').style.display = 'block';
@@ -477,6 +463,18 @@ function buildDeck(){
     d.push({id:id++,type:'skip',color:c.key,colorName:c.name,label:skipName(c.key),actionLabel:'SKIP'});
     d.push({id:id++,type:'plus2',color:c.key,colorName:c.name,label:plusName(c.key),actionLabel:'+2 PENALTY'});
   }
+  
+  // Menambahkan Kartu Exotic (Wild Cards)
+  d.push({id:id++,type:'wild',color:'wild',colorName:'Exotic',label:'Megalodon',actionLabel:'EXOTIC'});
+  d.push({id:id++,type:'wild_plus1',color:'wild',colorName:'Exotic',label:'Ancient Megalodon',actionLabel:'EXOTIC'});
+  d.push({id:id++,type:'wild_color',color:'wild',colorName:'Exotic',label:'Kraken',actionLabel:'EXOTIC'});
+  d.push({id:id++,type:'wild_block',color:'wild',colorName:'Exotic',label:'Flower Guardian',actionLabel:'EXOTIC'});
+
+  // Menambahkan Kartu Secret (Special Cards)
+  d.push({id:id++,type:'special_skip5',color:'special',colorName:'Secret',label:'Scylla',actionLabel:'SECRET'});
+  d.push({id:id++,type:'special_wither',color:'special',colorName:'Secret',label:'Witherbloom',actionLabel:'SECRET'});
+  d.push({id:id++,type:'special_devil',color:'special',colorName:'Secret',label:'Olympian Devil',actionLabel:'SECRET'});
+
   return shuffle(d);
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
@@ -540,7 +538,11 @@ function renderOnlineBoard(){
   }
 }
 
-function cardClass(c){return c.color ? ' '+c.color : ' yellow'}
+function cardClass(c){
+  if(c.color === 'wild') return ' wild';
+  if(c.color === 'special') return ' special';
+  return c.color ? ' '+c.color : ' yellow';
+}
 function cardHTML(c){
   let badgeText = c.actionLabel || (c.type==='number' ? '' : 'SPECIAL');
   let topLabel = badgeText ? `<div class="special-label">${badgeText}</div>` : '';
@@ -550,12 +552,13 @@ function cardHTML(c){
 function renderDiscard(){
   const d=getElem('discard');
   if(!discard)return;
-  d.className='pile discard '+discard.color;
+  d.className='pile discard '+cardClass(discard).trim();
   d.innerHTML=discard.type==='number'?`<div style="font-size:28px">${discard.value}</div>`:`<div class="name" style="font-size:9px">${(discard.label||'').replace('\\n','<br>')}</div>`;
 }
 
 function canPlay(c){
   if(!discard) return true;
+  if(c.color === 'wild' || c.color === 'special') return true; // Kartu Exotic & Secret bebas dipasang
   if(plusPending > 0) return c.type === 'plus2';
   
   let sameColor = c.color === discard.color;
@@ -605,6 +608,26 @@ function processClientAction(i, pIdx){
     plusPending += 2; 
   } else if(plusPending > 0){ 
     plusPending = 0; 
+  }
+
+  // Aturan Khusus Skip & Reverse berdasarkan Jumlah Pemain
+  if(c.type === 'skip'){
+    if(players === 2){
+      // Pada 2 player, Skip berarti lawan diskip, sehingga giliran tetap dipegang pemain saat ini (pemain jalan lagi)
+      // Tidak mengubah variabel current agar pemain bisa jalan lagi setelah menekan Selesai Giliran
+    } else {
+      // 3 atau 4 player: Lewati 1 pemain berikutnya
+      current = (current + (direction * 2) + players) % players;
+      hasPlayed = false;
+      hasDrawn = false;
+    }
+  } else if(c.type === 'reverse'){
+    direction *= -1;
+    if(players === 2){
+      // Pada 2 player, Reverse berfungsi seperti Skip (lawan diskip, jalan lagi)
+    } else {
+      current = (current + direction + players) % players;
+    }
   }
 
   if(hands[pIdx].length===0){

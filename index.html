@@ -25,7 +25,7 @@ button{font:inherit;border:0;cursor:pointer}
 
 /* Status Efek Aktif Bar */
 .status-bar{background:#17283a;border:1px solid #36516a;border-radius:8px;padding:6px 10px;margin-bottom:8px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:5px;flex-wrap:wrap}
-.status-badge{background:#e67e22;padding:2px 6px;border-radius:4px;font-weight:bold;color:#fff}
+.status-badge{background:#d88722;padding:2px 6px;border-radius:4px;font-weight:bold;color:#fff}
 
 .table{width:min(700px,100%);margin:auto;display:flex;flex-direction:column;gap:10px}
 .opponents{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
@@ -41,7 +41,8 @@ button{font:inherit;border:0;cursor:pointer}
 .card .num{font-size:24px}
 .card.disabled{opacity:.42;filter:grayscale(.7)}
 .card.playable{outline:3px solid #fff;transform:translateY(-4px)}
-.yellow{background:#f4c72d}.pink{background:#ef668f}.blue{background:#48a9ed}.green{background:#8bdc91}.wild{background:#9b59b6;color:#fff}.special{background:#e67e22;color:#fff}
+.yellow{background:#f4c72d}.pink{background:#ef668f}.blue{background:#48a9ed}.green{background:#8bdc91}
+.exotic{background:#b68cff}.secret{background:#ff765f}
 .special-label{font-size:7px;background:#0008;color:#fff;padding:2px 4px;border-radius:4px;margin-bottom:2px}
 .actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
 .action-btn{padding:10px 16px;border-radius:11px;background:#2b536f;color:#fff;font-weight:800;font-size:13px}
@@ -67,13 +68,51 @@ button{font:inherit;border:0;cursor:pointer}
 
 .roll-box{width:110px;height:110px;background:#fff;color:#0d1724;border-radius:16px;margin:15px auto;display:flex;align-items:center;justify-content:center;font-size:46px;font-weight:900;box-shadow:0 0 25px rgba(255,255,255,0.6);animation:pulseRoll .4s infinite alternate}
 @keyframes pulseRoll{from{transform:scale(1)} to{transform:scale(1.06)}}
+
+/* Animasi Witherbloom Scanning */
+#witherScanOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+#witherScanOverlay.active {
+  display: flex;
+}
+.scanner-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(to top, rgba(182, 140, 255, 0.8), rgba(138, 43, 226, 0));
+  box-shadow: 0 0 40px rgba(182, 140, 255, 0.9);
+  animation: scanUp 4s linear forwards;
+}
+@keyframes scanUp {
+  0% { top: 100%; }
+  100% { top: -120px; }
+}
+.scanner-text {
+  position: relative;
+  z-index: 2;
+  color: #d1b3ff;
+  font-size: 20px;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 0 10px #b68cff;
+  padding: 0 20px;
+}
 </style>
 </head>
 <body>
 
 <section id="menu" class="screen active menu">
   <div class="logo">FISCH CARD</div>
-  <div class="sub">Online Multiplayer v3.3</div>
+  <div class="sub">Online Multiplayer v3.4</div>
   <div style="width:min(340px,90vw);margin-bottom:15px">
     <div style="font-size:12px;opacity:0.7;margin-bottom:5px;text-align:left">Username Anda:</div>
     <input type="text" id="usernameInput" class="input-text" placeholder="Masukkan nama..." value="Player1" style="margin:0">
@@ -145,6 +184,12 @@ button{font:inherit;border:0;cursor:pointer}
   </div>
 </section>
 
+<!-- Overlay Animasi Scanning Witherbloom -->
+<div id="witherScanOverlay">
+  <div class="scanner-beam"></div>
+  <div class="scanner-text">Witherbloom Memindai Pemain Lain...<br><span style="font-size:13px;opacity:0.7">Memeriksa kecocokan warna kartu</span></div>
+</div>
+
 <div id="overlay" class="overlay hidden">
   <div class="modal">
     <h2 id="modalTitle">Informasi</h2>
@@ -188,10 +233,12 @@ let myPlayerIndex = 0;
 let players=0, current=0, hands=[], deck=[], discard=null, hasPlayed=false, hasDrawn=false, plusPending=0, direction=1;
 let gameOver=false, startedGameFlag=false;
 
-// Variabel Status Efek Khusus
+// Variabel Status Efek Khusus & Aksi
 let activeStatusEffect = "Normal";
 let activeStatusDetail = "Tidak ada efek khusus";
-let currentWildColor = null; // Untuk efek Kraken / Megalodon
+let currentWildColor = null; 
+let krakenActiveColor = null;
+let devilActive = false;
 
 function getElem(id){ return document.getElementById(id); }
 function show(id){ 
@@ -213,27 +260,28 @@ function goMenu(){
   if(peer) peer.destroy();
   connections = [];
   getElem('overlay').classList.add('hidden');
+  getElem('witherScanOverlay').classList.remove('active');
   show('menu');
 }
 
 function showGuide(){
-  getElem('modalTitle').textContent = 'Cara Main Fisch Card Game';
+  getElem('modalTitle').textContent = 'Panduan & Efek Kartu Fisch Card';
   getElem('modalBody').innerHTML = `
     <div class="notice" style="text-align:left;max-height:55vh;overflow-y:auto;font-size:12px;line-height:1.5">
-      <b>1. Dasar Rarity Fisch & Nomor:</b><br>
-      • Legendary = Kuning | Mythical = Pink | Limited = Biru | Relic = Hijau.<br>
-      • Siapa yang kartunya habis duluan adalah pemenangnya!<br><br>
+      <b>1. Rarity & Label Kartu:</b><br>
+      • Legendary (Kuning), Mythical (Pink), Limited (Biru), Relic (Hijau).<br>
+      • Kartu Exotic & Secret yang telah dipakai dikembalikan ke dalam *deck*.<br><br>
 
-      <b>2. Exotic Card (Wild):</b><br>
-      • <b>Megalodon:</b> Memilih warna baru.<br>
-      • <b>Ancient Megalodon:</b> Memilih warna + player berikutnya ambil 1 kartu.<br>
-      • <b>Kraken:</b> Pemain berikutnya harus mengambil kartu sampai mendapatkan warna pilihan Anda.<br>
-      • <b>Flower Guardian:</b> Membatalkan efek plus/penalti aktif.<br><br>
+      <b>2. Kartu Exotic (Wild):</b><br>
+      • <b>Megalodon:</b> Memilih warna aktif baru.<br>
+      • <b>Ancient Megalodon:</b> Memilih warna + penalti +1 kartu.<br>
+      • <b>Kraken:</b> Pemain berikutnya ambil kartu terus sampai dapat warna pilihan Kraken.<br>
+      • <b>Flower Guardian:</b> Membersihkan/mereset seluruh penalti & efek aktif.<br><br>
 
-      <b>3. Secret Card (Special):</b><br>
-      • <b>Scylla:</b> Targetkan pemain untuk mengambil 5 kartu & diskip.<br>
-      • <b>Witherbloom:</b> Memberikan efek Withered ke semua pemain (wajib punya warna acak, jika tidak ambil 5 kartu).<br>
-      • <b>Olympian Devil:</b> Menghukum pemain yang tidak bisa pasang kartu untuk mengambil 6 kartu terus menerus.
+      <b>3. Kartu Secret:</b><br>
+      • <b>Scylla:</b> Targetkan pemain untuk langsung diberi penalti 5 kartu & di-skip.<br>
+      • <b>Witherbloom:</b> Pemindaian warna acak; yang tidak punya warna tersebut ambil 5 kartu.<br>
+      • <b>Olympian Devil:</b> Akumulasi penalti bertambah +6 kartu.
     </div>
   `;
   getElem('modalBtn').style.display = 'block';
@@ -296,7 +344,7 @@ function connectToHost(){
   getElem('modalTitle').textContent = 'Menghubungkan...';
   getElem('modalBody').innerHTML = `<div class="notice">Menghubungkan ke room ${code}... Mohon tunggu sebentar.</div>`;
   getElem('modalBtn').style.display = 'block';
-  getElem('modalBtn').textContent = 'Batal / Ulangi';
+  getElem('modalBtn').textContent = 'Batal';
   getElem('modalBtn').onclick = joinGameSetup;
 
   if(peer) peer.destroy();
@@ -375,12 +423,16 @@ function handleIncomingData(data, conn){
     activeStatusEffect = data.activeStatusEffect || "Normal";
     activeStatusDetail = data.activeStatusDetail || "Tidak ada efek khusus";
     currentWildColor = data.currentWildColor || null;
+    krakenActiveColor = data.krakenActiveColor || null;
+    devilActive = data.devilActive || false;
     
     if(!startedGameFlag){
       startedGameFlag = true;
       show('game');
     }
     renderOnlineBoard();
+  } else if(data.type === 'TRIGGER_WITHER_ANIMATION'){
+    triggerWitherbloomAnimationLocally(data.detailText);
   } else if(data.type === 'CHAT'){
     appendChatMessage(data.sender, data.text);
   } else if(data.type === 'ACTION_PLAY'){
@@ -407,6 +459,8 @@ function hostStartGame(){
   activeStatusEffect = "Normal";
   activeStatusDetail = "Permainan dimulai";
   currentWildColor = null;
+  krakenActiveColor = null;
+  devilActive = false;
   
   for(let i=0;i<7;i++) for(let p=0;p<players;p++) hands[p].push(deck.pop());
   let idx = deck.findIndex(c=>c.type==='number');
@@ -415,7 +469,7 @@ function hostStartGame(){
   let state = {
     players: players, current: current, hands: hands, deck: deck, discard: discard,
     hasPlayed: hasPlayed, hasDrawn: hasDrawn, plusPending: plusPending, direction: direction, gameOver: gameOver,
-    activeStatusEffect, activeStatusDetail, currentWildColor
+    activeStatusEffect, activeStatusDetail, currentWildColor, krakenActiveColor, devilActive
   };
 
   broadcast({type: 'START_GAME_ANIMATION', firstPlayerIndex: current, state: state});
@@ -432,7 +486,7 @@ function playTurnRollAnimation(targetPlayerIdx, gameData){
   modalTitle.textContent = 'Menentukan Giliran Pertama...';
   
   let counter = 0;
-  let maxCount = 20;
+  let maxCount = 15;
   let totalP = playersInfo.length > 0 ? playersInfo.length : 2;
 
   let rollInterval = setInterval(()=>{
@@ -464,13 +518,15 @@ function playTurnRollAnimation(targetPlayerIdx, gameData){
         activeStatusEffect = gameData.activeStatusEffect;
         activeStatusDetail = gameData.activeStatusDetail;
         currentWildColor = gameData.currentWildColor;
+        krakenActiveColor = gameData.krakenActiveColor;
+        devilActive = gameData.devilActive;
 
         startedGameFlag = true;
         show('game');
         renderOnlineBoard();
-      }, 1500);
+      }, 1200);
     }
-  }, 90);
+  }, 80);
 }
 
 function buildDeck(){
@@ -482,16 +538,16 @@ function buildDeck(){
     d.push({id:id++,type:'plus2',color:c.key,colorName:c.name,label:plusName(c.key),actionLabel:'+2 PENALTY'});
   }
   
-  // Kartu Exotic
-  d.push({id:id++,type:'wild',color:'wild',colorName:'Exotic',label:'Megalodon',actionLabel:'EXOTIC'});
-  d.push({id:id++,type:'wild_plus1',color:'wild',colorName:'Exotic',label:'Ancient Megalodon',actionLabel:'EXOTIC'});
-  d.push({id:id++,type:'wild_color',color:'wild',colorName:'Exotic',label:'Kraken',actionLabel:'EXOTIC'});
-  d.push({id:id++,type:'wild_block',color:'wild',colorName:'Exotic',label:'Flower Guardian',actionLabel:'EXOTIC'});
+  // Kartu Exotic (Wild)
+  d.push({id:id++,type:'wild',sub:'megalodon',color:'wild',colorName:'Exotic',label:'MEGALODON',actionLabel:'EXOTIC'});
+  d.push({id:id++,type:'wild',sub:'ancient',color:'wild',colorName:'Exotic',label:'ANCIENT\\nMEGALODON',actionLabel:'EXOTIC'});
+  d.push({id:id++,type:'wild',sub:'kraken',color:'wild',colorName:'Exotic',label:'KRAKEN',actionLabel:'EXOTIC'});
+  d.push({id:id++,type:'wild',sub:'flower',color:'wild',colorName:'Exotic',label:'FLOWER\\nGUARDIAN',actionLabel:'EXOTIC'});
 
   // Kartu Secret
-  d.push({id:id++,type:'special_skip5',color:'special',colorName:'Secret',label:'Scylla',actionLabel:'SECRET'});
-  d.push({id:id++,type:'special_wither',color:'special',colorName:'Secret',label:'Witherbloom',actionLabel:'SECRET'});
-  d.push({id:id++,type:'special_devil',color:'special',colorName:'Secret',label:'Olympian Devil',actionLabel:'SECRET'});
+  d.push({id:id++,type:'secret',sub:'scylla',color:'special',colorName:'Secret',label:'SCYLLA',actionLabel:'SECRET'});
+  d.push({id:id++,type:'secret',sub:'witherbloom',color:'special',colorName:'Secret',label:'WITHERBLOOM',actionLabel:'SECRET'});
+  d.push({id:id++,type:'secret',sub:'devil',color:'special',colorName:'Secret',label:'OLYMPIAN\\nDEVIL',actionLabel:'SECRET'});
 
   return shuffle(d);
 }
@@ -499,6 +555,14 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()
 function revName(k){return {yellow:'Fin Whale',pink:'Blue Whale',blue:'Sei Whale',green:'Humpback Whale'}[k]}
 function skipName(k){return {yellow:'Umbraleaf Sturgeon',pink:'Solarseer Sturgeon',blue:'Glacierseer Sturgeon',green:'Floraseer Sturgeon'}[k]}
 function plusName(k){return {yellow:'Crowned Anglerfish',pink:'Magma Leviathan',blue:'Frozen Leviathan',green:'Crystalized Seadragon'}[k]}
+
+function recycleDiscardToDeck(){
+  if(discard){
+    deck.push(discard);
+    discard = null;
+    shuffle(deck);
+  }
+}
 
 function renderOnlineBoard(){
   let myIdx = myPlayerIndex;
@@ -527,7 +591,11 @@ function renderOnlineBoard(){
   getElem('turnText').textContent = isMyTurn ? ' Giliran Anda!' : ` Menunggu ${activePlayerName}...`;
   
   if(plusPending > 0){
-    getElem('msg').textContent = isMyTurn ? ` Terkena Penalti ${plusPending} Kartu! Ambil kartu dari deck.` : `${activePlayerName} sedang terkena penalti.`;
+    getElem('msg').textContent = isMyTurn ? ` Terkena Penalti ${plusPending} Kartu! Ambil kartu dari deck atau balas pasang kartu +2 / Devil.` : `${activePlayerName} sedang terkena penalti.`;
+  } else if(krakenActiveColor){
+    let cObj = COLORS.find(c=>c.key===krakenActiveColor);
+    let colName = cObj ? cObj.name : krakenActiveColor;
+    getElem('msg').textContent = isMyTurn ? ` Terkena Kraken! Ambil kartu dari deck sampai dapat warna ${colName}.` : `${activePlayerName} sedang mencari warna Kraken.`;
   } else {
     getElem('msg').textContent = isMyTurn ? 'Silakan mainkan kartu atau ambil dari deck.' : `Giliran ${activePlayerName}. Silakan tunggu atau gunakan chat.`;
   }
@@ -547,7 +615,7 @@ function renderOnlineBoard(){
 
   let deckPile = getElem('deckPile');
   if(deckPile){
-    let canDrawNow = isMyTurn && (!hasDrawn || plusPending > 0);
+    let canDrawNow = isMyTurn && (!hasDrawn || plusPending > 0 || krakenActiveColor);
     deckPile.style.pointerEvents = canDrawNow ? 'auto' : 'none';
     deckPile.style.opacity = canDrawNow ? '1' : '0.4';
   }
@@ -561,12 +629,12 @@ function renderOnlineBoard(){
 }
 
 function cardClass(c){
-  if(c.color === 'wild') return ' wild';
-  if(c.color === 'special') return ' special';
+  if(c.color === 'wild') return ' exotic';
+  if(c.color === 'special') return ' secret';
   return c.color ? ' '+c.color : ' yellow';
 }
 function cardHTML(c){
-  let badgeText = c.actionLabel || (c.type==='number' ? '' : 'SPECIAL');
+  let badgeText = c.actionLabel || (c.type==='number' ? '' : (c.type==='wild' ? 'EXOTIC' : 'SECRET'));
   let topLabel = badgeText ? `<div class="special-label">${badgeText}</div>` : '';
   if(c.type==='number')return `<div class="num">${c.value}</div><div class="name">${c.colorName}</div>`;
   return `${topLabel}<div class="name">${c.label.replace('\\n','<br>')}</div>`;
@@ -574,36 +642,39 @@ function cardHTML(c){
 function renderDiscard(){
   const d=getElem('discard');
   if(!discard)return;
-  let bgClass = discard.color === 'wild' || discard.color === 'special' ? discard.color : (currentWildColor || discard.color);
+  let bgClass = discard.color === 'wild' || discard.color === 'special' ? (discard.color==='wild'?'exotic':'secret') : (currentWildColor || discard.color);
   d.className='pile discard '+bgClass;
   d.innerHTML=discard.type==='number'?`<div style="font-size:28px">${discard.value}</div>`:`<div class="name" style="font-size:9px">${(discard.label||'').replace('\\n','<br>')}</div>`;
 }
 
 function canPlay(c){
+  if(krakenActiveColor) return false;
   if(!discard) return true;
-  if(c.color === 'wild' || c.color === 'special') return true;
-  if(plusPending > 0) return c.type === 'plus2';
+  if(plusPending > 0) return c.type === 'plus2' || (c.type === 'secret' && c.sub === 'devil');
   
   let effectiveColor = currentWildColor || discard.color;
   let sameColor = c.color === effectiveColor;
   let sameNumber = (c.type === 'number' && discard.type === 'number' && c.value === discard.value);
   let sameSpecial = (c.type !== 'number' && c.type === discard.type);
+  let isExoticOrSecret = (c.type === 'wild' || c.type === 'secret');
 
-  return sameColor || sameNumber || sameSpecial;
+  return sameColor || sameNumber || sameSpecial || isExoticOrSecret;
 }
 
 function onCardClicked(i){
   let c = hands[myPlayerIndex][i];
   
-  // Jika kartu memerlukan pemilihan warna/target khusus (Exotic/Secret)
-  if(c.type === 'wild' || c.type === 'wild_plus1' || c.type === 'wild_color'){
-    showColorPickerModal((chosenColor)=>{
+  // Tangani kartu Exotic Megalodon / Ancient Megalodon / Kraken
+  if(c.type === 'wild' && (c.sub === 'megalodon' || c.sub === 'ancient' || c.sub === 'kraken')){
+    let title = c.sub === 'kraken' ? 'Kraken — Tentukan Warna Target' : 'Pilih Warna Baru';
+    showColorPickerModal(title, (chosenColor)=>{
       executeCardPlay(i, chosenColor);
     });
     return;
   }
   
-  if(c.type === 'special_skip5'){
+  // Tangani kartu Secret Scylla (Pilih Target)
+  if(c.type === 'secret' && c.sub === 'scylla'){
     showTargetPlayerModal((targetIdx)=>{
       executeCardPlay(i, targetIdx);
     });
@@ -613,15 +684,15 @@ function onCardClicked(i){
   executeCardPlay(i, null);
 }
 
-function showColorPickerModal(callback){
-  getElem('modalTitle').textContent = 'Pilih Warna Baru';
+function showColorPickerModal(title, callback){
+  getElem('modalTitle').textContent = title;
   getElem('modalBody').innerHTML = `
     <div class="notice">Pilih warna untuk melanjutkan permainan:</div>
-    <div style="display:flex;gap:10px;justify-content:center;margin-top:15px">
-      <button class="menu-btn" style="background:#f4c72d;color:#000;width:70px;height:50px" onclick="window.pickColor('yellow')">Kuning</button>
-      <button class="menu-btn" style="background:#ef668f;color:#fff;width:70px;height:50px" onclick="window.pickColor('pink')">Pink</button>
-      <button class="menu-btn" style="background:#48a9ed;color:#fff;width:70px;height:50px" onclick="window.pickColor('blue')">Biru</button>
-      <button class="menu-btn" style="background:#8bdc91;color:#000;width:70px;height:50px" onclick="window.pickColor('green')">Hijau</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px">
+      <button class="menu-btn" style="background:#f4c72d;color:#000;padding:12px" onclick="window.pickColor('yellow')">Legendary (Kuning)</button>
+      <button class="menu-btn" style="background:#ef668f;color:#fff;padding:12px" onclick="window.pickColor('pink')">Mythical (Pink)</button>
+      <button class="menu-btn" style="background:#48a9ed;color:#fff;padding:12px" onclick="window.pickColor('blue')">Limited (Biru)</button>
+      <button class="menu-btn" style="background:#8bdc91;color:#000;padding:12px" onclick="window.pickColor('green')">Relic (Hijau)</button>
     </div>
   `;
   getElem('modalBtn').style.display = 'none';
@@ -634,12 +705,12 @@ function showColorPickerModal(callback){
 }
 
 function showTargetPlayerModal(callback){
-  getElem('modalTitle').textContent = 'Pilih Target Pemain';
+  getElem('modalTitle').textContent = 'Scylla — Pilih Target (Ambil 5 Kartu)';
   let listHtml = playersInfo.filter(p => p.index !== myPlayerIndex).map(p => `
     <button class="menu-btn secondary" style="width:100%;margin:5px 0" onclick="window.pickTarget(${p.index})">${p.name}</button>
   `).join('');
 
-  getElem('modalBody').innerHTML = `<div class="notice">Pilih pemain yang akan diserang Scylla:</div>${listHtml}`;
+  getElem('modalBody').innerHTML = `<div class="notice">Pilih pemain lawan yang akan diserang Scylla:</div>${listHtml}`;
   getElem('modalBtn').style.display = 'block';
   getElem('modalBtn').textContent = 'Batal';
   getElem('modalBtn').onclick = () => getElem('overlay').classList.add('hidden');
@@ -682,60 +753,86 @@ function processClientAction(i, pIdx, extraData){
   const c = hands[pIdx][i];
   if(!canPlay(c)) return;
 
-  if(discard && deck) deck.push(discard);
+  recycleDiscardToDeck();
   discard = c;
   hands[pIdx].splice(i,1);
   hasPlayed = true;
 
-  // Efek Default & Wild reset
   currentWildColor = null;
 
-  // Logika Efek Kartu Exotic & Secret
+  // Logika Eksekusi Kartu Exotic & Secret
   if(c.type === 'wild'){
-    currentWildColor = extraData || 'yellow';
-    activeStatusEffect = "Megalodon";
-    activeStatusDetail = `${playersInfo[pIdx].name} mengubah warna ke ${currentWildColor}`;
-  } else if(c.type === 'wild_plus1'){
-    currentWildColor = extraData || 'yellow';
-    let nextP = (current + direction + players) % players;
-    for(let k=0; k<1; k++) { if(deck.length===0) deck = buildDeck(); hands[nextP].push(deck.pop()); }
-    activeStatusEffect = "Ancient Megalodon";
-    activeStatusDetail = `${playersInfo[nextP].name} mengambil 1 kartu tambahan`;
-  } else if(c.type === 'wild_color'){
-    currentWildColor = extraData || 'yellow';
-    let nextP = (current + direction + players) % players;
-    activeStatusEffect = "Kraken Active";
-    activeStatusDetail = `${playersInfo[nextP].name} harus mengambil kartu hingga warna ${currentWildColor}`;
-  } else if(c.type === 'wild_block'){
-    plusPending = 0;
-    activeStatusEffect = "Flower Guardian";
-    activeStatusDetail = `Semua efek penalti dibatalkan!`;
-  } else if(c.type === 'special_skip5'){
-    let targetIdx = extraData !== undefined ? extraData : (current + 1) % players;
-    for(let k=0; k<5; k++) { if(deck.length===0) deck = buildDeck(); hands[targetIdx].push(deck.pop()); }
-    activeStatusEffect = "Scylla Attack";
-    activeStatusDetail = `${playersInfo[targetIdx].name} mengambil 5 kartu & diskip!`;
-    if(players > 2){
-      current = targetIdx; // Skip target
+    if(c.sub === 'megalodon'){
+      currentWildColor = extraData || 'yellow';
+      discard.color = currentWildColor;
+      activeStatusEffect = "Megalodon";
+      activeStatusDetail = `${playersInfo[pIdx].name} mengubah warna ke ${COLORS.find(x=>x.key===currentWildColor).name}`;
+    } else if(c.sub === 'ancient'){
+      currentWildColor = extraData || 'yellow';
+      discard.color = currentWildColor;
+      plusPending += 1;
+      activeStatusEffect = "Ancient Megalodon";
+      activeStatusDetail = `Warna diubah & penalti +1 ditambahkan`;
+    } else if(c.sub === 'kraken'){
+      krakenActiveColor = extraData || 'yellow';
+      discard.color = krakenActiveColor;
+      activeStatusEffect = "Kraken Active";
+      let nextP = (current + direction + players) % players;
+      activeStatusDetail = `${playersInfo[nextP].name} wajib mencari warna ${COLORS.find(x=>x.key===krakenActiveColor).name}`;
+    } else if(c.sub === 'flower'){
+      plusPending = 0;
+      devilActive = false;
+      krakenActiveColor = null;
+      activeStatusEffect = "Flower Guardian";
+      activeStatusDetail = `Semua efek penalti & status dibersihkan!`;
     }
-  } else if(c.type === 'special_wither'){
-    let randomCol = COLORS[Math.floor(Math.random()*COLORS.length)].key;
-    hands.forEach((hand, idx) => {
-      let hasCol = hand.some(card => card.color === randomCol);
-      if(!hasCol){
-        for(let k=0; k<5; k++) { if(deck.length===0) deck = buildDeck(); hand.push(deck.pop()); }
+  } else if(c.type === 'secret'){
+    let randomCol = COLORS[Math.floor(Math.random()*COLORS.length)];
+    discard.color = randomCol.key;
+    currentWildColor = randomCol.key;
+
+    if(c.sub === 'scylla'){
+      let targetIdx = extraData !== undefined ? extraData : (current + 1) % players;
+      for(let k=0; k<5; k++) { 
+        if(deck.length === 0) recycleDiscardToDeck(); 
+        hands[targetIdx].push(deck.pop()); 
       }
-    });
-    activeStatusEffect = "Witherbloom";
-    activeStatusDetail = `Withered warna ${randomCol}! Yang tak punya ambil 5 kartu.`;
-  } else if(c.type === 'special_devil'){
-    activeStatusEffect = "Olympian Devil";
-    activeStatusDetail = `Pemain tanpa kartu pasang wajib mengambil 6 kartu terus menerus!`;
-  } else if(c.type==='plus2'){ 
+      activeStatusEffect = "Scylla Attack";
+      activeStatusDetail = `${playersInfo[targetIdx].name} mendapat 5 kartu & di-skip!`;
+      if(players > 2){
+        current = targetIdx; 
+      }
+    } else if(c.sub === 'witherbloom'){
+      activeStatusEffect = "Witherbloom";
+      activeStatusDetail = `Pemindaian kartu warna ${randomCol.name} sedang berlangsung...`;
+      
+      // Kirim trigger animasi scan ke semua klien
+      broadcast({type: 'TRIGGER_WITHER_ANIMATION', detailText: `Warna: ${randomCol.name}`});
+      triggerWitherbloomAnimationLocally(`Warna: ${randomCol.name}`);
+
+      // Cek pemain lain
+      hands.forEach((hand, idx) => {
+        if(idx !== pIdx){
+          let hasCol = hand.some(card => card.color === randomCol.key);
+          if(!hasCol){
+            for(let k=0; k<5; k++) { 
+              if(deck.length === 0) recycleDiscardToDeck(); 
+              hand.push(deck.pop()); 
+            }
+          }
+        }
+      });
+    } else if(c.sub === 'devil'){
+      plusPending += 6;
+      devilActive = true;
+      activeStatusEffect = "Olympian Devil";
+      activeStatusDetail = `Akumulasi penalti melompat jadi +${plusPending} kartu!`;
+    }
+  } else if(c.type === 'plus2'){ 
     plusPending += 2; 
     activeStatusEffect = "+2 Penalti";
     activeStatusDetail = `Akumulasi penalti ${plusPending} kartu`;
-  } else if(plusPending > 0){ 
+  } else if(plusPending > 0 && c.type !== 'plus2'){ 
     plusPending = 0; 
   }
 
@@ -748,17 +845,17 @@ function processClientAction(i, pIdx, extraData){
       hasPlayed = false; hasDrawn = false;
     }
     activeStatusEffect = "Skip Card";
-    activeStatusDetail = `Giliran dilewati`;
+    activeStatusDetail = `Giliran lawan dilewati`;
   } else if(c.type === 'reverse'){
     direction *= -1;
     if(players !== 2){
       current = (current + direction + players) % players;
     }
     activeStatusEffect = "Reverse Card";
-    activeStatusDetail = `Arah permainan dibalik`;
+    activeStatusDetail = `Arah putaran permainan dibalik`;
   }
 
-  if(hands[pIdx].length===0){
+  if(hands[pIdx].length === 0){
     gameOver = true;
   }
 
@@ -768,34 +865,44 @@ function processClientAction(i, pIdx, extraData){
   }
 }
 
+function triggerWitherbloomAnimationLocally(textInfo){
+  let scanOverlay = getElem('witherScanOverlay');
+  if(!scanOverlay) return;
+  scanOverlay.classList.add('active');
+  setTimeout(()=>{
+    scanOverlay.classList.remove('active');
+  }, 4000);
+}
+
 function processClientDraw(pIdx){
   if(current !== pIdx) return;
-  if(hasDrawn && plusPending === 0) return;
+  if(hasDrawn && plusPending === 0 && !krakenActiveColor) return;
 
   let count = plusPending > 0 ? plusPending : 1;
   
-  // Jika Kraken aktif, ambil kartu sampai warna sesuai
-  if(activeStatusEffect.includes("Kraken") && currentWildColor){
+  if(krakenActiveColor){
     let drawnCount = 0;
     while(true){
-      if(deck.length===0) deck = buildDeck();
+      if(deck.length === 0) recycleDiscardToDeck();
       let drawnCard = deck.pop();
       hands[pIdx].push(drawnCard);
       drawnCount++;
-      if(drawnCard.color === currentWildColor || drawnCard.color === 'wild' || drawnCard.color === 'special' || drawnCount >= 6) {
+      if(drawnCard.color === krakenActiveColor || drawnCard.type === 'wild' || drawnCard.type === 'secret' || drawnCount >= 6) {
         break;
       }
     }
-    activeStatusEffect = "Normal";
-    activeStatusDetail = `Kraken selesai (${drawnCount} kartu diambil)`;
+    krakenActiveColor = null;
+    activeStatusEffect = "Kraken Selesai";
+    activeStatusDetail = `Berhasil mendapat kartu warna target (${drawnCount} kartu diambil)`;
   } else {
     for(let d=0; d<count; d++){
-      if(deck.length===0) deck = buildDeck();
+      if(deck.length === 0) recycleDiscardToDeck();
       hands[pIdx].push(deck.pop());
     }
   }
 
   plusPending = 0;
+  devilActive = false;
   hasDrawn = true;
 
   if(isHost){
@@ -819,7 +926,7 @@ function syncGameState(){
   let state = {
     type: 'STATE_UPDATE', players: players, current: current, hands: hands,
     deck: deck, discard: discard, hasPlayed: hasPlayed, hasDrawn: hasDrawn, plusPending: plusPending, direction: direction,
-    gameOver: gameOver, activeStatusEffect, activeStatusDetail, currentWildColor
+    gameOver: gameOver, activeStatusEffect, activeStatusDetail, currentWildColor, krakenActiveColor, devilActive
   };
   broadcast(state);
 }
